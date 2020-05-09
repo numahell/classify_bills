@@ -35,6 +35,7 @@ class BillConfiguration:      # pylint: disable=too-many-instance-attributes
         self.match_patterns = []
         self.date_pattern = None
         self.date_format = None
+        self.id_pattern = None
         self.adjust_month_back = False
         self.year_pattern = None
 
@@ -118,6 +119,33 @@ class BillConfiguration:      # pylint: disable=too-many-instance-attributes
         logging.debug("%s: bill date: %s", filename, str(bill_date.date()))
         return bill_date
 
+    def extract_info(self, text, filename):
+
+        for pattern in self.match_patterns:
+            if not re.search(pattern, text):
+                return None
+
+        logging.debug("%s: match successful for account '%s'",
+                      filename, self.account_name)
+
+        result = {}
+        result['bill_date'] = self.match(text, filename)
+
+        # get id
+        match = re.search(self.id_pattern, text, re.IGNORECASE | re.DOTALL)
+
+        if not match:
+            logging.debug("%s: id string not found", filename)
+            return None
+
+        bill_id = match.group(1)
+        logging.debug("%s: id matched for account '%s': '%s'",
+                      filename, self.account_name, bill_id)
+
+        result['bill_id'] = bill_id
+
+        return result
+
 
     def from_json_config(self, acct):
         """Set configuration based on old-style JSON config."""
@@ -178,6 +206,11 @@ class BillConfiguration:      # pylint: disable=too-many-instance-attributes
         if date_extractor.attrib.get("adjust-month-back"):
             self.adjust_month_back = True
 
+        id_extractor = root.find("./id-extraction")
+        if id_extractor is None:
+            raise Exception("%s: ID extraction information is missing" %
+                            filename)
+        self.id_pattern = id_extractor.attrib.get("regex")
 
     def write_xml(self, output_file):
         """Write configuration as XML file."""
